@@ -3,28 +3,34 @@
 
 import json
 import requests
-import os
 from enum import Enum
+from lxml import html
+
+class Term(Enum):
+	DAY = 1
+	INDEFINITE = 2
+
+class PriceType(Enum):
+	MARKET = 1
+	LIMIT = 2
+	STOP = 3
+
+class SecurityType(Enum):
+	ETF = 1
+	STOCK = 2
 
 class MarketWatch:
-	def __init__(self):
-		self.session = requests.Session()
-
-	class Term(Enum):
-		DAY = 1
-		INDEFINITE = 2
-
-	class PriceType(Enum):
-		MARKET = 1
-		LIMIT = 2
-		STOP = 3
-
 	terms = {
-		Term.DAY: '"DayOrder"',
-		Term.INDEFINITE: '"Cancelled"'
+		Term.DAY: 'DayOrder',
+		Term.INDEFINITE: 'Cancelled'
 	}
 
-	def login(self, email, password):
+	def __init__(self, email, password, game):
+		self.game = game
+		SecurityType = SecurityType()
+		Term = Term()
+		PriceType = PriceType()
+		self.session = requests.Session()
 		url = 'http://id.marketwatch.com/auth/submitlogin.json'
 		headers = {'Content-Type': 'application/json'}
 		data = {
@@ -38,75 +44,66 @@ class MarketWatch:
 		try:
 			self.session.get(url=response['url'])
 		except KeyError:
+			print('Login failed.')
 			exit(1)
 
-	def getPrice(ticker):
+	def __init__(self):
+		self.session = requests.Session()
+
+	def getPrice(self, ticker):
 		try:
-			page = requests.get("http://www.marketwatch.com/investing/fund/%s" % ticker)
+			page = requests.get("http://www.marketwatch.com/investing/stock/%s" % ticker)
 			tree = html.fromstring(page.content)
 			price = tree.xpath("/html/body/div[1]/div[3]/div[2]/div/div/div[2]/h3/bg-quote/text()")
 			return round(float(price[0]), 2)
 		except:
 			return None
 
-	def buy(ticker, shares, term, priceType):
-		if (priceType != PriceType.MARKET):
-			print('This function call is only for orders with market pricing.')
-			exit(1)
-		return buy(ticker, shares, term, priceType, None)
+	def getType(self, ticker):
+		page = requests.get("http://www.marketwatch.com/investing/stock/%s" % ticker)
+		if ("fund" in page.url):
+			return SecurityType.ETF
+		else:
+			return SecurityType.STOCK
 
-	def buy(ticker, shares, term, priceType, price):
-		payload = [{"Fuid": ticker, "Shares": shares, "Type": "Buy", "Term": terms[priceType]}]
+	def buy(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
+		# TODO: ensure user has enough money
+		ticker = self.formalizeTicker(ticker)
+		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Buy", "Term": self.terms[term]}]
 		if (priceType == PriceType.LIMIT):
 			payload[0]['Limit'] = price
 		if (priceType == PriceType.STOP):
 			payload[0]['Stop'] = price
-		return payload
+		print(payload)
 
-	def short(ticker, shares, term, priceType):
-		if (priceType != PriceType.MARKET):
-			print('This function call is only for orders with market pricing.')
-			exit(1)
-		return short(ticker, shares, term, priceType, None)
-
-	def short(ticker, shares, term, priceType, price):
-		payload = [{"Fuid": ticker, "Shares": shares, "Type": "Short", "Term": terms[priceType]}]
+	def short(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
+		# TODO: ensure user has enough money
+		ticker = formalizeTicker(ticker)
+		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Short", "Term": terms[term]}]
 		if (priceType == PriceType.LIMIT):
 			payload[0]['Limit'] = price
 		if (priceType == PriceType.STOP):
 			payload[0]['Stop'] = price
-		return payload
+		print(payload)
 
-	def sell(ticker, shares, term, priceType):
-		if (priceType != PriceType.MARKET):
-			print('This function call is only for orders with market pricing.')
-			exit(1)
-		return sell(ticker, shares, term, priceType, None)
-
-	def sell(ticker, shares, term, priceType, price):
+	def sell(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
 		# TODO: ensure user actually owns the shares
-		payload = [{"Fuid": ticker, "Shares": shares, "Type": "Sell", "Term": terms[priceType]}]
+		ticker = formalizeTicker(ticker)
+		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Sell", "Term": terms[term]}]
 		if (priceType == PriceType.LIMIT):
 			payload[0]['Limit'] = price
 		if (priceType == PriceType.STOP):
 			payload[0]['Stop'] = price
-		return payload
+		print(payload)
 
-	#def cover(ticker, shares, term, priceType):
+	def formalizeTicker(self, ticker):
+		if (self.getType(ticker) == SecurityType.ETF):
+			return ('EXCHANGETRADEDFUND-XASQ-%s' % ticker)
+		else:
+			return ('STOCK-XASQ-%s' % ticker)
 
-email = ''
-password = ''
-
-try:
-	email = os.environ['MARKETWATCH_EMAILd']
-	password = os.environ['MARKETWATCH_PASSWORDd']
-	print('Your credentials have been successfully read from your env variables.')
-except KeyError:
-	print('You have not set your MarketWatch credentials in your env variables.\n'
-		+ 'Please input your credentials for this session now.')
-	email = input('Email: ')
-	password = input('Password: ')
-	print('Your credentials have been successfully saved for just this session.')
-
-api = MarketWatch()
-api.login(email, password)
+	def submit(self, payload):
+		url = ('http://www.marketwatch.com/game/%s/trade/submitorder' % self.game)
+		headers = {'Content-Type': 'application/json'}
+		response = json.loads((self.session.post(url=url, headers=headers, json=paylod)).text)
+		return response

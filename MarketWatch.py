@@ -27,9 +27,6 @@ class MarketWatch:
 
 	def __init__(self, email, password, game):
 		self.game = game
-		SecurityType = SecurityType()
-		Term = Term()
-		PriceType = PriceType()
 		self.session = requests.Session()
 		url = 'http://id.marketwatch.com/auth/submitlogin.json'
 		headers = {'Content-Type': 'application/json'}
@@ -46,9 +43,6 @@ class MarketWatch:
 		except KeyError:
 			print('Login failed.')
 			exit(1)
-
-	def __init__(self):
-		self.session = requests.Session()
 
 	def getPrice(self, ticker):
 		try:
@@ -71,30 +65,40 @@ class MarketWatch:
 		ticker = self.formalizeTicker(ticker)
 		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Buy", "Term": self.terms[term]}]
 		if (priceType == PriceType.LIMIT):
-			payload[0]['Limit'] = price
+			payload[0]['Limit'] = str(price)
 		if (priceType == PriceType.STOP):
-			payload[0]['Stop'] = price
-		print(payload)
+			payload[0]['Stop'] = str(price)
+		return self.submit(payload)
 
 	def short(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
 		# TODO: ensure user has enough money
-		ticker = formalizeTicker(ticker)
-		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Short", "Term": terms[term]}]
+		ticker = self.formalizeTicker(ticker)
+		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Short", "Term": self.terms[term]}]
 		if (priceType == PriceType.LIMIT):
-			payload[0]['Limit'] = price
+			payload[0]['Limit'] = str(price)
 		if (priceType == PriceType.STOP):
-			payload[0]['Stop'] = price
-		print(payload)
+			payload[0]['Stop'] = str(price)
+		return self.submit(payload)
 
 	def sell(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
 		# TODO: ensure user actually owns the shares
-		ticker = formalizeTicker(ticker)
-		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Sell", "Term": terms[term]}]
+		ticker = self.formalizeTicker(ticker)
+		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Sell", "Term": self.terms[term]}]
 		if (priceType == PriceType.LIMIT):
-			payload[0]['Limit'] = price
+			payload[0]['Limit'] = str(price)
 		if (priceType == PriceType.STOP):
-			payload[0]['Stop'] = price
-		print(payload)
+			payload[0]['Stop'] = str(price)
+		return self.submit(payload)
+
+	def cover(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
+		# TODO: ensure user actually has a short position
+		ticker = self.formalizeTicker(ticker)
+		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": "Cover", "Term": self.terms[term]}]
+		if (priceType == PriceType.LIMIT):
+			payload[0]['Limit'] = str(price)
+		if (priceType == PriceType.STOP):
+			payload[0]['Stop'] = str(price)
+		return self.submit(payload)
 
 	def formalizeTicker(self, ticker):
 		if (self.getType(ticker) == SecurityType.ETF):
@@ -105,5 +109,5 @@ class MarketWatch:
 	def submit(self, payload):
 		url = ('http://www.marketwatch.com/game/%s/trade/submitorder' % self.game)
 		headers = {'Content-Type': 'application/json'}
-		response = json.loads((self.session.post(url=url, headers=headers, json=paylod)).text)
-		return response
+		response = json.loads((self.session.post(url=url, headers=headers, json=payload)).text)
+		return(response)

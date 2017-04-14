@@ -1,3 +1,10 @@
+'''
+NOT READY FOR USAGE: DO NOT USE
+
+TODO list for driver:
+- Implement interactive CLI for using API
+'''
+
 from MarketWatch import *
 import os
 
@@ -18,7 +25,7 @@ except KeyError:
 	game = input('Game: ')
 	print('Your credentials have been successfully saved for just this session.')
 
-api = MarketWatch(email, password, game)
+api = MarketWatch(email, password, game, True)
 
 orders = {
 	"JNUG": 1,

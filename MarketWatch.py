@@ -9,6 +9,8 @@ TODO list for API:
 - Implement function to cancel pending order
 - Implement function to cancel all pending orders
 - Write unit/integration tests?
+- Find another way to get the actual ticker prefix.
+  The current implementation does not work for all securities.
 '''
 
 import json
@@ -17,8 +19,8 @@ from enum import Enum
 from lxml import html
 
 class Term(Enum):
-	DAY = 1
-	INDEFINITE = 2
+	DAY = 'DayOrder'
+	INDEFINITE = 'Cancelled'
 
 class PriceType(Enum):
 	MARKET = 1
@@ -26,28 +28,16 @@ class PriceType(Enum):
 	STOP = 3
 
 class SecurityType(Enum):
-	ETF = 1
-	STOCK = 2
+	ETF = 'EXCHANGETRADEDFUND-XASQ-'
+	STOCK = 'STOCK-XASQ-'
 
 class OrderType(Enum):
-	BUY = 1
-	SELL = 2
-	SHORT = 3
-	COVER = 4
+	BUY = 'Buy'
+	SELL = 'Sell'
+	SHORT = 'Short'
+	COVER = 'Cover'
 
 class MarketWatch:
-	terms = {
-		Term.DAY: 'DayOrder',
-		Term.INDEFINITE: 'Cancelled'
-	}
-
-	orderTypes = {
-		OrderType.BUY: 'Buy',
-		OrderType.SELL: 'Sell',
-		OrderType.SHORT: 'Short',
-		OrderType.COVER: 'Cover'
-	}
-
 	def __init__(self, email, password, game, debug = False):
 		self.debug = debug
 		self.game = game
@@ -102,7 +92,7 @@ class MarketWatch:
 
 	def orderDriver(self, ticker, shares, term, priceType, price, orderType):
 		ticker = self.formalizeTicker(ticker)
-		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": self.orderTypes[orderType], "Term": self.terms[term]}]
+		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": orderType.value, "Term": term.value}]
 		if (priceType == PriceType.LIMIT):
 			payload[0]['Limit'] = str(price)
 		if (priceType == PriceType.STOP):
@@ -111,9 +101,9 @@ class MarketWatch:
 
 	def formalizeTicker(self, ticker):
 		if (self.getType(ticker) == SecurityType.ETF):
-			return ('EXCHANGETRADEDFUND-XASQ-%s' % ticker)
+			return (SecurityType.ETF.value + ticker)
 		else:
-			return ('STOCK-XASQ-%s' % ticker)
+			return (SecurityType.STOCK.value + ticker)
 
 	def submit(self, payload):
 		if (self.debug):

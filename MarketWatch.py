@@ -9,8 +9,6 @@ TODO list for API:
 - Implement function to cancel pending order
 - Implement function to cancel all pending orders
 - Write unit/integration tests?
-- Find another way to get the actual ticker prefix.
-  The current implementation does not work for all securities.
 '''
 
 import json
@@ -26,10 +24,6 @@ class PriceType(Enum):
 	MARKET = 1
 	LIMIT = 2
 	STOP = 3
-
-class SecurityType(Enum):
-	ETF = 'EXCHANGETRADEDFUND-XASQ-'
-	STOCK = 'STOCK-XASQ-'
 
 class OrderType(Enum):
 	BUY = 'Buy'
@@ -67,13 +61,6 @@ class MarketWatch:
 		except:
 			return None
 
-	def getType(self, ticker):
-		page = requests.get("http://www.marketwatch.com/investing/stock/%s" % ticker)
-		if ("fund" in page.url):
-			return SecurityType.ETF
-		else:
-			return SecurityType.STOCK
-
 	def buy(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
 		# TODO: ensure user has enough money
 		return self.orderDriver(ticker, shares, term, priceType, price, OrderType.BUY)
@@ -91,7 +78,7 @@ class MarketWatch:
 		return self.orderDriver(ticker, shares, term, priceType, price, OrderType.COVER)
 
 	def orderDriver(self, ticker, shares, term, priceType, price, orderType):
-		ticker = self.formalizeTicker(ticker)
+		ticker = self.validateTicker(ticker)
 		payload = [{"Fuid": ticker, "Shares": str(shares), "Type": orderType.value, "Term": term.value}]
 		if (priceType == PriceType.LIMIT):
 			payload[0]['Limit'] = str(price)
@@ -99,11 +86,19 @@ class MarketWatch:
 			payload[0]['Stop'] = str(price)
 		return self.submit(payload)
 
-	def formalizeTicker(self, ticker):
-		if (self.getType(ticker) == SecurityType.ETF):
-			return (SecurityType.ETF.value + ticker)
+	def validateTicker(self, ticker):
+		page = self.session.post('http://www.marketwatch.com/game/' + self.game + '/trade?week=1', data={'search': ticker, 'partial': 'true', 'view': 'grid'})
+		tree = html.fromstring(page.content)
+
+		try:
+			tickerSymbol = tree.xpath('//div/div[3]/div/@data-symbol')[0]
+		except:
+			return None
+
+		if (tree.xpath('//div/div[3]/div/@class')[0] == 'chip disabled'):
+			return None
 		else:
-			return (SecurityType.STOCK.value + ticker)
+			return tickerSymbol
 
 	def submit(self, payload):
 		if (self.debug):

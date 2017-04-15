@@ -9,6 +9,9 @@ TODO list for API:
 - Implement function to cancel pending order
 - Implement function to cancel all pending orders
 - Write unit/integration tests?
+- Implement function to get all held securities
+- Implement function to get buying power
+- Implement function to get available cash
 '''
 
 import json

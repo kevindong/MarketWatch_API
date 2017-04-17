@@ -1,17 +1,8 @@
 '''
-NOT READY FOR USAGE: DO NOT USE
+MarketWatch API
+April 17, 2017
 
-TODO list for API:
-- Check to make sure the user has the enough cash/security on hand to
-  execute the order
-- Implement function to get status of order
-- Implement function to get all pending orders
-- Implement function to cancel pending order
-- Implement function to cancel all pending orders
-- Write unit/integration tests?
-- Implement function to get all held securities
-- Implement function to get buying power
-- Implement function to get available cash
+Probably ready for use.
 '''
 
 import json
@@ -33,6 +24,16 @@ class OrderType(Enum):
 	SELL = 'Sell'
 	SHORT = 'Short'
 	COVER = 'Cover'
+
+class Order:
+	def __init__(self, id, ticker, quantity, orderType, priceType, price = None):
+		self.id = id
+		self.ticker = ticker
+		self.quantity = quantity
+		self.orderType = orderType
+		self.priceType = priceType
+		self.price = price
+
 
 class MarketWatch:
 	def __init__(self, email, password, game, debug = False):
@@ -65,19 +66,15 @@ class MarketWatch:
 			return None
 
 	def buy(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
-		# TODO: ensure user has enough money
 		return self.orderDriver(ticker, shares, term, priceType, price, OrderType.BUY)
 
 	def short(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
-		# TODO: ensure user has enough money
 		return self.orderDriver(ticker, shares, term, priceType, price, OrderType.SHORT)
 
 	def sell(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
-		# TODO: ensure user actually owns the shares
 		return self.orderDriver(ticker, shares, term, priceType, price, OrderType.SELL)
 
 	def cover(self, ticker, shares, term = Term.INDEFINITE, priceType = PriceType.MARKET, price = None):
-		# TODO: ensure user actually has a short position
 		return self.orderDriver(ticker, shares, term, priceType, price, OrderType.COVER)
 
 	def orderDriver(self, ticker, shares, term, priceType, price, orderType):
@@ -112,3 +109,65 @@ class MarketWatch:
 			headers = {'Content-Type': 'application/json'}
 			response = json.loads((self.session.post(url=url, headers=headers, json=payload)).text)
 			return(response)
+
+	def cancelOrder(self, id):
+		url = ('http://www.marketwatch.com/game/' + self.game + '/trade/cancelorder?id=' + str(id))
+		self.session.get(url)
+		return None
+
+	def cancelAllOrders(self):
+		orders = self.getOrders()
+		for order in orders:
+			url = ('http://www.marketwatch.com/game/' + self.game + '/trade/cancelorder?id=' + str(order.id))
+			self.session.get(url)
+		return None
+
+	def getOrders(self):
+		tree = html.fromstring(self.session.get("http://www.marketwatch.com/game/" + self.game + "/portfolio/orders").content)
+		rawOrders = tree.xpath("//*[@id=\"maincontent\"]/section[2]/table/tbody")
+		orders = []
+		try:
+			numberOfOrders = len(rawOrders[0])
+		except:
+			return orders
+		for i in range(numberOfOrders):
+			cleanedId = self.cleanText(rawOrders[0][i][4][0].get("href"))
+			id = int(cleanedId[cleanedId.index('=') + 1:])
+			ticker = self.cleanText(rawOrders[0][i][0][0].text)
+			quantity = int(self.cleanText(rawOrders[0][i][1].text))
+			orderType = self.getOrderType(self.cleanText(rawOrders[0][i][2].text))
+			priceType = self.getPriceType(self.cleanText(rawOrders[0][i][2].text))
+			price = self.getPrice(self.cleanText(rawOrders[0][i][2].text))
+			orders.append(Order(id, ticker, quantity, orderType, priceType, price))
+		return orders
+
+	def cleanText(self, text):
+		return text.replace("\r\n", "").replace("\t", "").replace(" ", "")
+
+	def getOrderType(self, order):
+		if ("Buy" in order):
+			return OrderType.BUY
+		elif ("Short" in order):
+			return OrderType.SHORT
+		elif ("Cover" in order):
+			return OrderType.COVER
+		elif ("Sell" in order):
+			return OrderType.SELL
+		else:
+			return None
+
+	def getPriceType(self, order):
+		if ("market" in order):
+			return PriceType.MARKET
+		elif ("limit" in order):
+			return PriceType.LIMIT
+		elif ("stop" in order):
+			return PriceType.STOP
+		else:
+			return None
+
+	def getPrice(self, order):
+		if ("$" not in order):
+			return None
+		else:
+			return float(order[(order.index('$') + 1):])

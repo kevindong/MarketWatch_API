@@ -1,12 +1,22 @@
 '''
-NOT READY FOR USAGE: DO NOT USE
+MarketWatch API
+April 17, 2017
 
-TODO list for driver:
-- Implement interactive CLI for using API
+Probably ready for use.
 '''
 
 from MarketWatch import *
 import os
+
+def printOrder(order):
+	print("Order: %d" % order.id)
+	print("Ticker: %s" % order.ticker)
+	print("Quantity: %d" % order.quantity)
+	print("Order Type: %s" % order.orderType)
+	print("Price Type: %s" % order.priceType)
+	if (order.price != None):
+		print("Price: $%.2f" % order.price)
+	print("\n")
 
 email = ''
 password = ''
@@ -27,6 +37,20 @@ except KeyError:
 
 api = MarketWatch(email, password, game, True)
 
+'''
+api.cancelAllOrders()
+orders = api.getOrders()
+
+for item in orders:
+	printOrder(item)
+
+print(api.validateTicker("APPL"))
+print(api.validateTicker("APPLKLJDZF"))
+print(api.validateTicker("AAPL"))
+print(api.validateTicker("JNUG"))
+print(api.validateTicker("SNAP"))
+print(api.validateTicker("GOOG"))
+
 orders = {
 	"JNUG": 1,
 	"IBM": 2,
@@ -43,7 +67,6 @@ for i in orders:
 		print("Order failed.")
 		print(response)
 
-'''
 api.buy("SNAP", 1)
 api.sell("SNAP", 1)
 api.short("SNAP", 1)

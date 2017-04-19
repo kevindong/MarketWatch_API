@@ -1,8 +1,10 @@
 '''
 MarketWatch API
 April 19, 2017
+v1.0.0
 
-Probably ready for use.
+Apache License 2.0
+https://github.com/kevindong/marketwatch_api
 '''
 
 import json

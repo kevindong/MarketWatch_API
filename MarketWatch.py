@@ -1,6 +1,6 @@
 '''
 MarketWatch API
-April 17, 2017
+April 19, 2017
 
 Probably ready for use.
 '''
@@ -34,6 +34,11 @@ class Order:
 		self.priceType = priceType
 		self.price = price
 
+class Position:
+	def __init__(self, ticker, orderType, quantity):
+		self.ticker = ticker
+		self.orderType = orderType
+		self.quantity = quantity
 
 class MarketWatch:
 	def __init__(self, email, password, game, debug = False):
@@ -58,7 +63,7 @@ class MarketWatch:
 
 	def getPrice(self, ticker):
 		try:
-			page = requests.get("http://www.marketwatch.com/investing/stock/%s" % ticker)
+			page = self.session.get("http://www.marketwatch.com/investing/stock/" + ticker)
 			tree = html.fromstring(page.content)
 			price = tree.xpath("/html/body/div[1]/div[3]/div[2]/div/div/div[2]/h3/bg-quote/text()")
 			return round(float(price[0]), 2)
@@ -102,8 +107,8 @@ class MarketWatch:
 
 	def submit(self, payload):
 		if (self.debug):
-			print(payload)
-			return payload
+			print("Debug mode is enabled; payload is: " + str(payload))
+			return None
 		else:
 			url = ('http://www.marketwatch.com/game/%s/trade/submitorder' % self.game)
 			headers = {'Content-Type': 'application/json'}
@@ -137,12 +142,12 @@ class MarketWatch:
 			quantity = int(self.cleanText(rawOrders[0][i][1].text))
 			orderType = self.getOrderType(self.cleanText(rawOrders[0][i][2].text))
 			priceType = self.getPriceType(self.cleanText(rawOrders[0][i][2].text))
-			price = self.getPrice(self.cleanText(rawOrders[0][i][2].text))
+			price = self.getPriceOfOrder(self.cleanText(rawOrders[0][i][2].text))
 			orders.append(Order(id, ticker, quantity, orderType, priceType, price))
 		return orders
 
 	def cleanText(self, text):
-		return text.replace("\r\n", "").replace("\t", "").replace(" ", "")
+		return text.replace("\r\n", "").replace("\t", "").replace(" ", "").replace(",", "")
 
 	def getOrderType(self, order):
 		if ("Buy" in order):
@@ -166,8 +171,44 @@ class MarketWatch:
 		else:
 			return None
 
-	def getPrice(self, order):
+	def getPriceOfOrder(self, order):
 		if ("$" not in order):
 			return None
 		else:
 			return float(order[(order.index('$') + 1):])
+
+	def getPositions(self):
+		tree = html.fromstring(self.session.get("http://www.marketwatch.com/game/" + self.game + "/portfolio/Holdings").content)
+		rawPositions = tree.xpath("//*[@id=\"maincontent\"]/section[2]/div[1]/table/tbody")
+		positions = []
+		try:
+			numberOfPositions = len(rawPositions[0])
+		except:
+			return positions
+		for i in range(numberOfPositions):
+			currentItem = rawPositions[0][i]
+			positions.append(Position(currentItem.get('data-ticker'), self.getOrderType(currentItem.get('data-type')), int(float(currentItem.get('data-shares')))))
+		return positions
+
+	def getBuyingPower(self):
+		tree = html.fromstring(self.session.get("http://www.marketwatch.com/game/" + self.game + "/portfolio/Holdings").content)
+		buyingPower = tree.xpath("//*[@id=\"maincontent\"]/section[1]/div[2]/ul[2]/li[1]/span[2]/text()")[0]
+		buyingPower = buyingPower.replace("$", "").replace(",", "")
+		return float(buyingPower)
+
+	def getCashRemaining(self):
+		tree = html.fromstring(self.session.get("http://www.marketwatch.com/game/" + self.game + "/portfolio/Holdings").content)
+		cashRemaining = tree.xpath("//*[@id=\"maincontent\"]/section[1]/div[2]/ul[2]/li[2]/span[2]/text()")[0]
+		cashRemaining = cashRemaining.replace("$", "").replace(",", "")
+		return float(cashRemaining)
+
+	def getCashBorrowed(self):
+		tree = html.fromstring(self.session.get("http://www.marketwatch.com/game/" + self.game + "/portfolio/Holdings").content)
+		cashBorrowed = tree.xpath("//*[@id=\"maincontent\"]/section[1]/div[2]/ul[2]/li[3]/span[2]/text()")[0]
+		cashBorrowed = cashBorrowed.replace("$", "").replace(",", "")
+		return float(cashBorrowed)
+
+	def getExecutionPrice(self):
+		tree = html.fromstring(self.session.get("http://www.marketwatch.com/game/" + self.game + "/portfolio/transactionhistory").content)
+		price = self.cleanText(tree.xpath("//*[@id=\"maincontent\"]/section[2]/div[1]/table/tbody/tr[1]/td[6]/text()")[0]).replace("$", "")
+		return float(price)
